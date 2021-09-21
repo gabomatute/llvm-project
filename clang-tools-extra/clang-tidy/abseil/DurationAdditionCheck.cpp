@@ -11,62 +11,181 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 #include "clang/Tooling/FixIt.h"
+#include "clang/Tooling/Transformer/RewriteRule.h"
+#include "clang/Tooling/Transformer/Stencil.h"
 
 using namespace clang::ast_matchers;
+using namespace clang::transformer;
 
 namespace clang {
 namespace tidy {
 namespace abseil {
 
-void DurationAdditionCheck::registerMatchers(MatchFinder *Finder) {
-  Finder->addMatcher(
-      binaryOperator(hasOperatorName("+"),
-                     hasEitherOperand(expr(ignoringParenImpCasts(
-                         callExpr(callee(functionDecl(TimeConversionFunction())
-                                             .bind("function_decl")))
-                             .bind("call")))))
-          .bind("binop"),
-      this);
-}
+// M: absl::ToUnix[Units]($lhs) + absl::ToUnix[Units]($rhs)
+// >> absl::ToUnix[Units]($lhs + $rhs)
 
-void DurationAdditionCheck::check(const MatchFinder::MatchResult &Result) {
-  const BinaryOperator *Binop =
-      Result.Nodes.getNodeAs<clang::BinaryOperator>("binop");
-  const CallExpr *Call = Result.Nodes.getNodeAs<clang::CallExpr>("call");
+// M: absl::ToUnix[Units]($lhs) + $rhs
+// >> absl::ToUnix[Units]($lhs + absl::Hours($rhs))
 
-  // Don't try to replace things inside of macro definitions.
-  if (Binop->getExprLoc().isMacroID() || Binop->getExprLoc().isInvalid())
-    return;
+// M: $lhs + absl::ToUnix[Units]($rhs)
+// >> absl::ToUnix[Units](absl::Hours($lhs) + $rhs)
 
-  llvm::Optional<DurationScale> Scale = getScaleForTimeInverse(
-      Result.Nodes.getNodeAs<clang::FunctionDecl>("function_decl")->getName());
-  if (!Scale)
-    return;
+auto DurationAdditionRule = applyFirst({
+    // ToUnixMinutes
+    makeRule(
+      binaryOperator(
+        hasOperatorName("+"),
+        hasLHS(ignoringParenImpCasts(callExpr(callee(functionDecl(hasName("::absl::ToUnixHours"))), hasArgument(0, expr().bind("lhs"))))),
+        hasRHS(ignoringParenImpCasts(callExpr(callee(functionDecl(hasName("::absl::ToUnixHours"))), hasArgument(0, expr().bind("rhs")))))),
+      changeTo(
+        cat("absl::ToUnixHours(", expression("lhs"), " + ", expression("rhs"), ")")),
+      cat("perform addition in the duration domain")),
+    makeRule(
+      binaryOperator(
+        hasOperatorName("+"),
+        hasLHS(ignoringParenImpCasts(callExpr(callee(functionDecl(hasName("::absl::ToUnixHours"))), hasArgument(0, expr().bind("lhs"))))),
+        hasRHS(expr().bind("rhs"))),
+      changeTo(
+        cat("absl::ToUnixHours(", expression("lhs"), " + absl::Hours(", node("rhs"), "))")),
+      cat("perform addition in the duration domain")),
+    makeRule(
+      binaryOperator(
+        hasOperatorName("+"),
+        hasLHS(expr().bind("lhs")),
+        hasRHS(ignoringParenImpCasts(callExpr(callee(functionDecl(hasName("::absl::ToUnixHours"))), hasArgument(0, expr().bind("rhs")))))),
+      changeTo(
+        cat("absl::ToUnixHours(absl::Hours(", node("lhs"), ") + ", expression("rhs"), ")")),
+      cat("perform addition in the duration domain")),
+    // ToUnixMinutes
+    makeRule(
+      binaryOperator(
+        hasOperatorName("+"),
+        hasLHS(ignoringParenImpCasts(callExpr(callee(functionDecl(hasName("::absl::ToUnixMinutes"))), hasArgument(0, expr().bind("lhs"))))),
+        hasRHS(ignoringParenImpCasts(callExpr(callee(functionDecl(hasName("::absl::ToUnixMinutes"))), hasArgument(0, expr().bind("rhs")))))),
+      changeTo(
+        cat("absl::ToUnixMinutes(", expression("lhs"), " + ", expression("rhs"), ")")),
+      cat("perform addition in the duration domain")),
+    makeRule(
+      binaryOperator(
+        hasOperatorName("+"),
+        hasLHS(ignoringParenImpCasts(callExpr(callee(functionDecl(hasName("::absl::ToUnixMinutes"))), hasArgument(0, expr().bind("lhs"))))),
+        hasRHS(expr().bind("rhs"))),
+      changeTo(
+        cat("absl::ToUnixMinutes(", expression("lhs"), " + absl::Minutes(", node("rhs"), "))")),
+      cat("perform addition in the duration domain")),
+    makeRule(
+      binaryOperator(
+        hasOperatorName("+"),
+        hasLHS(expr().bind("lhs")),
+        hasRHS(ignoringParenImpCasts(callExpr(callee(functionDecl(hasName("::absl::ToUnixMinutes"))), hasArgument(0, expr().bind("rhs")))))),
+      changeTo(
+        cat("absl::ToUnixMinutes(absl::Minutes(", node("lhs"), ") + ", expression("rhs"), ")")),
+      cat("perform addition in the duration domain")),
+    // ToUnixSeconds
+    makeRule(
+      binaryOperator(
+        hasOperatorName("+"),
+        hasLHS(ignoringParenImpCasts(callExpr(callee(functionDecl(hasName("::absl::ToUnixSeconds"))), hasArgument(0, expr().bind("lhs"))))),
+        hasRHS(ignoringParenImpCasts(callExpr(callee(functionDecl(hasName("::absl::ToUnixSeconds"))), hasArgument(0, expr().bind("rhs")))))),
+      changeTo(
+        cat("absl::ToUnixSeconds(", expression("lhs"), " + ", expression("rhs"), ")")),
+      cat("perform addition in the duration domain")),
+    makeRule(
+      binaryOperator(
+        hasOperatorName("+"),
+        hasLHS(ignoringParenImpCasts(callExpr(callee(functionDecl(hasName("::absl::ToUnixSeconds"))), hasArgument(0, expr().bind("lhs"))))),
+        hasRHS(expr().bind("rhs"))),
+      changeTo(
+        cat("absl::ToUnixSeconds(", expression("lhs"), " + absl::Seconds(", node("rhs"), "))")),
+      cat("perform addition in the duration domain")),
+    makeRule(
+      binaryOperator(
+        hasOperatorName("+"),
+        hasLHS(expr().bind("lhs")),
+        hasRHS(ignoringParenImpCasts(callExpr(callee(functionDecl(hasName("::absl::ToUnixSeconds"))), hasArgument(0, expr().bind("rhs")))))),
+      changeTo(
+        cat("absl::ToUnixSeconds(absl::Seconds(", node("lhs"), ") + ", expression("rhs"), ")")),
+      cat("perform addition in the duration domain")),
+    // ToUnixMillis
+    makeRule(
+      binaryOperator(
+        hasOperatorName("+"),
+        hasLHS(ignoringParenImpCasts(callExpr(callee(functionDecl(hasName("::absl::ToUnixMillis"))), hasArgument(0, expr().bind("lhs"))))),
+        hasRHS(ignoringParenImpCasts(callExpr(callee(functionDecl(hasName("::absl::ToUnixMillis"))), hasArgument(0, expr().bind("rhs")))))),
+      changeTo(
+        cat("absl::ToUnixMillis(", expression("lhs"), " + ", expression("rhs"), ")")),
+      cat("perform addition in the duration domain")),
+    makeRule(
+      binaryOperator(
+        hasOperatorName("+"),
+        hasLHS(ignoringParenImpCasts(callExpr(callee(functionDecl(hasName("::absl::ToUnixMillis"))), hasArgument(0, expr().bind("lhs"))))),
+        hasRHS(expr().bind("rhs"))),
+      changeTo(
+        cat("absl::ToUnixMillis(", expression("lhs"), " + absl::Milliseconds(", node("rhs"), "))")),
+      cat("perform addition in the duration domain")),
+    makeRule(
+      binaryOperator(
+        hasOperatorName("+"),
+        hasLHS(expr().bind("lhs")),
+        hasRHS(ignoringParenImpCasts(callExpr(callee(functionDecl(hasName("::absl::ToUnixMillis"))), hasArgument(0, expr().bind("rhs")))))),
+      changeTo(
+        cat("absl::ToUnixMillis(absl::Milliseconds(", node("lhs"), ") + ", expression("rhs"), ")")),
+      cat("perform addition in the duration domain")),
+    // ToUnixMicros
+    makeRule(
+      binaryOperator(
+        hasOperatorName("+"),
+        hasLHS(ignoringParenImpCasts(callExpr(callee(functionDecl(hasName("::absl::ToUnixMicros"))), hasArgument(0, expr().bind("lhs"))))),
+        hasRHS(ignoringParenImpCasts(callExpr(callee(functionDecl(hasName("::absl::ToUnixMicros"))), hasArgument(0, expr().bind("rhs")))))),
+      changeTo(
+        cat("absl::ToUnixMicros(", expression("lhs"), " + ", expression("rhs"), ")")),
+      cat("perform addition in the duration domain")),
+    makeRule(
+      binaryOperator(
+        hasOperatorName("+"),
+        hasLHS(ignoringParenImpCasts(callExpr(callee(functionDecl(hasName("::absl::ToUnixMicros"))), hasArgument(0, expr().bind("lhs"))))),
+        hasRHS(expr().bind("rhs"))),
+      changeTo(
+        cat("absl::ToUnixMicros(", expression("lhs"), " + absl::Microseconds(", node("rhs"), "))")),
+      cat("perform addition in the duration domain")),
+    makeRule(
+      binaryOperator(
+        hasOperatorName("+"),
+        hasLHS(expr().bind("lhs")),
+        hasRHS(ignoringParenImpCasts(callExpr(callee(functionDecl(hasName("::absl::ToUnixMicros"))), hasArgument(0, expr().bind("rhs")))))),
+      changeTo(
+        cat("absl::ToUnixMicros(absl::Microseconds(", node("lhs"), ") + ", expression("rhs"), ")")),
+      cat("perform addition in the duration domain")),
+    // ToUnixNanos
+    makeRule(
+      binaryOperator(
+        hasOperatorName("+"),
+        hasLHS(ignoringParenImpCasts(callExpr(callee(functionDecl(hasName("::absl::ToUnixNanos"))), hasArgument(0, expr().bind("lhs"))))),
+        hasRHS(ignoringParenImpCasts(callExpr(callee(functionDecl(hasName("::absl::ToUnixNanos"))), hasArgument(0, expr().bind("rhs")))))),
+      changeTo(
+        cat("absl::ToUnixNanos(", expression("lhs"), " + ", expression("rhs"), ")")),
+      cat("perform addition in the duration domain")),
+    makeRule(
+      binaryOperator(
+        hasOperatorName("+"),
+        hasLHS(ignoringParenImpCasts(callExpr(callee(functionDecl(hasName("::absl::ToUnixNanos"))), hasArgument(0, expr().bind("lhs"))))),
+        hasRHS(expr().bind("rhs"))),
+      changeTo(
+        cat("absl::ToUnixNanos(", expression("lhs"), " + absl::Nanoseconds(", node("rhs"), "))")),
+      cat("perform addition in the duration domain")),
+    makeRule(
+      binaryOperator(
+        hasOperatorName("+"),
+        hasLHS(expr().bind("lhs")),
+        hasRHS(ignoringParenImpCasts(callExpr(callee(functionDecl(hasName("::absl::ToUnixNanos"))), hasArgument(0, expr().bind("rhs")))))),
+      changeTo(
+        cat("absl::ToUnixNanos(absl::Nanoseconds(", node("lhs"), ") + ", expression("rhs"), ")")),
+      cat("perform addition in the duration domain")),
+});
 
-  llvm::StringRef TimeFactory = getTimeInverseForScale(*Scale);
-
-  FixItHint Hint;
-  if (Call == Binop->getLHS()->IgnoreParenImpCasts()) {
-    Hint = FixItHint::CreateReplacement(
-        Binop->getSourceRange(),
-        (llvm::Twine(TimeFactory) + "(" +
-         tooling::fixit::getText(*Call->getArg(0), *Result.Context) + " + " +
-         rewriteExprFromNumberToDuration(Result, *Scale, Binop->getRHS()) + ")")
-            .str());
-  } else {
-    assert(Call == Binop->getRHS()->IgnoreParenImpCasts() &&
-           "Call should be found on the RHS");
-    Hint = FixItHint::CreateReplacement(
-        Binop->getSourceRange(),
-        (llvm::Twine(TimeFactory) + "(" +
-         rewriteExprFromNumberToDuration(Result, *Scale, Binop->getLHS()) +
-         " + " + tooling::fixit::getText(*Call->getArg(0), *Result.Context) +
-         ")")
-            .str());
-  }
-
-  diag(Binop->getBeginLoc(), "perform addition in the duration domain") << Hint;
-}
+DurationAdditionCheck::DurationAdditionCheck(StringRef Name,
+                                             ClangTidyContext *Context)
+    : TransformerClangTidyCheck(DurationAdditionRule, Name, Context) {}
 
 } // namespace abseil
 } // namespace tidy

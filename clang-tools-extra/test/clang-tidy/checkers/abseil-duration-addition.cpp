@@ -44,20 +44,10 @@ void f() {
   // CHECK-MESSAGES: [[@LINE-1]]:7: warning: perform addition in the duration domain [abseil-duration-addition]
   // CHECK-FIXES: absl::ToUnixNanos(absl::Nanoseconds(3) + t)
 
-  // Undoing inverse conversions
-  i = absl::ToUnixMicros(t) + absl::ToInt64Microseconds(absl::Seconds(1));
-  // CHECK-MESSAGES: [[@LINE-1]]:7: warning: perform addition in the duration domain [abseil-duration-addition]
-  // CHECK-FIXES: absl::ToUnixMicros(t + absl::Seconds(1))
-
   // Parens
   i = 3 + (absl::ToUnixHours(t));
   // CHECK-MESSAGES: [[@LINE-1]]:7: warning: perform addition in the duration domain [abseil-duration-addition]
   // CHECK-FIXES: absl::ToUnixHours(absl::Hours(3) + t)
-
-  // Float folding
-  i = absl::ToUnixSeconds(t) + 5.0;
-  // CHECK-MESSAGES: [[@LINE-1]]:7: warning: perform addition in the duration domain [abseil-duration-addition]
-  // CHECK-FIXES: absl::ToUnixSeconds(t + absl::Seconds(5))
 
   // We can rewrite the argument of the duration conversion
 #define THIRTY absl::FromUnixSeconds(30)
@@ -67,7 +57,7 @@ void f() {
 #undef THIRTY
 
   // Some other contexts
-  if (absl::ToUnixSeconds(t) + 1.0 > 10) {}
+  if (absl::ToUnixSeconds(t) + 1 > 10) {}
   // CHECK-MESSAGES: [[@LINE-1]]:7: warning: perform addition in the duration domain [abseil-duration-addition]
   // CHECK-FIXES: absl::ToUnixSeconds(t + absl::Seconds(1))
 
