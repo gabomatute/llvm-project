@@ -4221,6 +4221,12 @@ AST_POLYMORPHIC_MATCHER_P2(hasArgument,
   if (Finder->isTraversalIgnoringImplicitNodes() && isa<CXXDefaultArgExpr>(Arg))
     return false;
   return InnerMatcher.matches(*Arg->IgnoreParenImpCasts(), Finder, Builder);
+  // if (Finder->isTraversalIgnoringImplicitNodes()) {
+  //   if (isa<CXXDefaultArgExpr>(Arg))
+  //     return false;
+  //   Arg = Arg->IgnoreImpCasts();
+  // }
+  // return InnerMatcher.matches(*Arg, Finder, Builder);
 }
 
 /// Matches the n'th item of an initializer list expression.
