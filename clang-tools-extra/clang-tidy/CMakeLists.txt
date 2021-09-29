@@ -74,6 +74,7 @@ add_subdirectory(openmp)
 add_subdirectory(performance)
 add_subdirectory(portability)
 add_subdirectory(readability)
+add_subdirectory(transform)
 add_subdirectory(zircon)
 set(ALL_CLANG_TIDY_CHECKS
   clangTidyAndroidModule
@@ -98,6 +99,7 @@ set(ALL_CLANG_TIDY_CHECKS
   clangTidyPerformanceModule
   clangTidyPortabilityModule
   clangTidyReadabilityModule
+  clangTidyTransformModule
   clangTidyZirconModule
   )
 if(CLANG_TIDY_ENABLE_STATIC_ANALYZER)
