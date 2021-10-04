@@ -24,6 +24,12 @@ auto TimeTravel::Rule = applyFirst({
                 {"change", T(long), T(chrono::seconds)},
                 node("arg")))),
         cat("Annotate `", node("arg"), "` to be updated.")),
+    makeRule(
+        traverse(clang::TK_AsIs, marked(
+            {"change", T(long), T(struct chrono::duration<long>)},
+            integerLiteral(hasType(T(int))).bind("lit"))),
+        changeTo(cat(node("lit"), "_s")),
+        cat("Use type-safe `", node("lit"), "_s` literal.")),
 });
 
 } // namespace transform

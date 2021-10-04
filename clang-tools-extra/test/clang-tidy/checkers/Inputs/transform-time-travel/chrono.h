@@ -97,6 +97,11 @@ namespace chrono {
 
     // Convenience type aliases
     using seconds = duration<long>;
+
+    namespace literals {
+        // Convenience typed literals
+        constexpr chrono::seconds operator "" _s(unsigned long long secs);
+    }
 }
 
 constexpr long gcd(long a, long b) { return (b == 0) ? a : gcd(b, a % b); }

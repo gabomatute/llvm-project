@@ -21,6 +21,7 @@ struct type {
     explicit type(std::string name) : name(std::move(name)) {}
     template <typename T> static auto from(std::string name) { return type{std::move(name)}; }
     operator internal::Matcher<clang::QualType>() { return asString(name); }
+    auto rv_ref() { return type(name + " &&"); }
     std::string name;
 };
 
@@ -30,6 +31,20 @@ struct type_update {
 };
 
 const std::string step_prefix = "$step::";
+
+auto marked(type_update update, internal::Matcher<clang::Stmt> expr) {
+    // TODO: should `update.to` match referenced or resolved alias?
+    return callExpr(
+        callee(functionDecl(
+            hasName(step_prefix + update.step),
+            hasTemplateArgument(0, refersToType(update.from)),
+            hasTemplateArgument(1, refersToType(update.to)),
+            // templateArgumentCountIs(2), // FIX
+            hasParameter(0, hasType(update.from.rv_ref())),
+            parameterCountIs(1))),
+        hasArgument(0, expr),
+        argumentCountIs(1));
+}
 
 Stencil mark(type_update update, RangeSelector expr) {
     return cat(step_prefix, update.step, "<", update.from.name, ", ", update.to.name, ">(", expr,")");
