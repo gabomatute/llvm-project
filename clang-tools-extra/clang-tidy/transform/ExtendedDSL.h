@@ -18,10 +18,10 @@ using namespace clang::transformer;
 
 /// Please use the T macro to construct
 struct type {
-    explicit type(const char* name) : name(name) {}
-    template <typename T> static auto from(const char* name) { return type{name}; }
+    explicit type(std::string name) : name(std::move(name)) {}
+    template <typename T> static auto from(std::string name) { return type{std::move(name)}; }
     operator internal::Matcher<clang::QualType>() { return asString(name); }
-    const char* name;
+    std::string name;
 };
 
 struct type_update {
