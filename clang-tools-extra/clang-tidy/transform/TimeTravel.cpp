@@ -18,9 +18,9 @@ auto TimeTravel::Rule = applyFirst({
                 hasParameter(0, hasType(T(long))))),
             hasArgument(0, expr().bind("arg")),
             argumentCountIs(1))),
-        changeTo(
-            node("arg"),
-            change(T(long), T(chrono::seconds), node("arg"))),
+        changeTo(node("arg"), mark(
+            {"change", T(long), T(chrono::seconds)},
+            node("arg"))),
         cat("Annotate `", node("arg"), "` to be updated.")),
 });
 
